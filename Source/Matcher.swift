@@ -10,6 +10,9 @@ import os.log
 protocol Matching {
     /// Returns the next match in the input.
     func nextMatch() -> Regex.Match?
+    /// Returns true if the most recent matching operation attempted to access additional input beyond the available input text.
+    /// In this case, additional input text could turn the results to the Match.
+    func hitEnd() -> Bool
 }
 
 // MARK: - BacktrackingMatcher
@@ -30,6 +33,7 @@ final class BacktrackingMatcher: Matching {
 
     private var cursor: Cursor
     private var isFinished = false
+    private var isHitEnd = false
 
     init(string: String, regex: CompiledRegex, options: Regex.Options, isMatchOnly: Bool) {
         self.regex = regex
@@ -49,6 +53,10 @@ final class BacktrackingMatcher: Matching {
         }
         isFinished = !cursor.advance(toEndOfMatch: match) && !isStartingFromStartIndex
         return match
+    }
+
+    func hitEnd() -> Bool {
+        return isHitEnd
     }
 
     private func findNextMatch() -> Regex.Match? {
@@ -152,6 +160,7 @@ final class RegularMatcher: Matching {
 
     private var cursor: Cursor
     private var isFinished = false
+    private var isHitEnd = false
 
     // Reuse allocated buffers across different invocations to avoid re-creating
     // them over and over again.
@@ -190,6 +199,10 @@ final class RegularMatcher: Matching {
         isFinished = !cursor.advance(toEndOfMatch: match) && !isStartingFromStartIndex
 
         return match
+    }
+
+    func hitEnd() -> Bool {
+        return isHitEnd
     }
 
     private func findNextMatch() -> Regex.Match? {
@@ -231,24 +244,30 @@ final class RegularMatcher: Matching {
         os_log(.default, log: log, "%{PUBLIC}@", "– [\(cursor)]: << Entering reachable states: \(reachableStates.map { symbols.description(for: $0) })")
         #endif
 
-        if reachableStates.isEmpty && potentialMatch == nil && !isStartingFromStartIndex {
+        if reachableStates.isEmpty && potentialMatch == nil {
             // Failed to find matches, restart from the initial state
 
             #if DEBUG
             os_log(.default, log: log, "%{PUBLIC}@", "– [\(cursor)]: Failed to find matches \(reachableStates.map { symbols.description(for: $0) })")
             #endif
 
-            cursor.startAt(cursor.index(after: cursor.startIndex))
-
-            if isCapturingGroups { groupsStartIndexes.removeAll() }
-            reachableStates = SmallSet(0)
+            if isStartingFromStartIndex {
+                cursor.startAt(cursor.endIndex)
+                reachableStates = SmallSet()
+            } else {
+                cursor.startAt(cursor.index(after: cursor.startIndex))
+                if isCapturingGroups { groupsStartIndexes.removeAll() }
+                reachableStates = SmallSet(0)
+            }
         } else {
             // Advance the cursor
-            if reachableUntil.count > 0 && reachableUntil.count == newReachableStates.count {
+            if reachableUntil.count > 0 && reachableUntil.count == reachableStates.count {
                 // [Optimization] Jump multiple indices at a time without checking the condition again
                 cursor.advance(to: reachableUntil.values.min()!)
+                isHitEnd = cursor.isPastTheEnd
             } else {
                 cursor.advance(by: 1)
+                isHitEnd = cursor.isPastTheEnd
             }
         }
     }
@@ -316,10 +335,14 @@ final class RegularMatcher: Matching {
 
                     let result = transition.condition.canPerformTransition(cursor)
                     switch result {
-                    case .rejected:
+                    case let .rejected(count):
                         // [Optimization] If we come accross this state later, we
                         // can quit search early – it never leads to a match
                         deadEnds[state] = cursor.index
+                        if count > 0 {
+                            cursor.advance(by: count)
+                            isHitEnd = true
+                        }
                     case let .accepted(count):
                         if count > 0 { // Consumed characters
                             newReachableStates.insert(transition.end)

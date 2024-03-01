@@ -46,14 +46,14 @@ extension FSM {
         let isCaseInsensitive: Bool
 
         func canPerformTransition(_ cursor: Cursor) -> ConditionResult {
-            guard let input = cursor.character else { return .rejected }
+            guard let input = cursor.character else { return .rejected() }
             let isEqual: Bool
             if isCaseInsensitive {
                 isEqual = String(character).caseInsensitiveCompare(String(input)) == ComparisonResult.orderedSame
             } else {
                 isEqual = input == character
             }
-            return isEqual ? .accepted() : .rejected
+            return isEqual ? .accepted() : .rejected()
         }
     }
 
@@ -73,18 +73,23 @@ extension FSM {
 
         func canPerformTransition(_ cursor: Cursor) -> ConditionResult {
             guard let ub = cursor.index(cursor.index, offsetBy: count, isLimited: true) else {
-                return .rejected
+                let input = cursor[cursor.index..<cursor.endIndex]
+                if string.hasPrefix(input) {
+                    return .rejected(count: input.count)
+                } else {
+                    return .rejected()
+                }
             }
             let input = cursor[cursor.index..<ub]
 
             if isCaseInsensitive {
                 // TODO: test this
                 guard String(input).caseInsensitiveCompare(string) == ComparisonResult.orderedSame else {
-                    return .rejected
+                    return .rejected()
                 }
             } else {
                 guard input == string else {
-                    return .rejected
+                    return .rejected()
                 }
             }
             return .accepted(count: count)
@@ -130,21 +135,21 @@ extension FSM {
         let isNegative: Bool
 
         func canPerformTransition(_ cursor: Cursor) -> ConditionResult {
-            guard let input = cursor.character else { return .rejected }
+            guard let input = cursor.character else { return .rejected() }
             let isMatch: Bool
             if isCaseInsensitive, input.isCased {
                 isMatch = set.contains(Character(input.lowercased())) || set.contains(Character(input.uppercased()))
             } else {
                 isMatch = set.contains(input)
             }
-            return (isMatch != isNegative) ? .accepted() : .rejected
+            return (isMatch != isNegative) ? .accepted() : .rejected()
         }
     }
 
     private struct MatchAnyNumber: Condition {
         func canPerformTransition(_ cursor: Cursor) -> ConditionResult {
-            guard let input = cursor.character else { return .rejected }
-            return input.isNumber ? .accepted() : .rejected
+            guard let input = cursor.character else { return .rejected() }
+            return input.isNumber ? .accepted() : .rejected()
         }
     }
 
@@ -160,7 +165,7 @@ extension FSM {
         let isNegative: Bool
 
         func canPerformTransition(_ cursor: Cursor) -> ConditionResult {
-            guard let input = cursor.character else { return .rejected }
+            guard let input = cursor.character else { return .rejected() }
             let isMatch: Bool
             if isCaseInsensitive, input.isCased {
                 // TODO: this definitely isn't efficient
@@ -169,7 +174,7 @@ extension FSM {
             } else {
                 isMatch = input.unicodeScalars.allSatisfy(range.contains)
             }
-            return (isMatch != isNegative) ? .accepted() : .rejected
+            return (isMatch != isNegative) ? .accepted() : .rejected()
         }
     }
 
@@ -184,8 +189,8 @@ extension FSM {
         let includingNewline: Bool
 
         func canPerformTransition(_ cursor: Cursor) -> ConditionResult {
-            guard !cursor.isEmpty else { return .rejected }
-            return (includingNewline || cursor[cursor.index] != "\n") ? .accepted() : .rejected
+            guard !cursor.isEmpty else { return .rejected() }
+            return (includingNewline || cursor[cursor.index] != "\n") ? .accepted() : .rejected()
         }
     }
 }
@@ -359,11 +364,11 @@ extension FSM {
 
         func canPerformTransition(_ cursor: Cursor) -> ConditionResult {
             guard let groupRange = cursor.groups[groupIndex] else {
-                return .rejected
+                return .rejected()
             }
             let group = cursor.string[groupRange]
             guard cursor.string[cursor.index...].hasPrefix(group) else {
-                return .rejected
+                return .rejected()
             }
             return .accepted(count: group.count)
         }

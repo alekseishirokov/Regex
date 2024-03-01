@@ -96,7 +96,11 @@ extension Cursor {
 
 extension Cursor {
     func index(_ index: String.Index, offsetBy offset: Int, isLimited: Bool = false) -> String.Index? {
-        return string.index(index, offsetBy: offset, limitedBy: string.endIndex)
+        if isLimited {
+            return string.index(index, offsetBy: offset, limitedBy: string.endIndex)
+        } else {
+            return string.index(index, offsetBy: offset)
+        }
     }
 
     func index(after index: String.Index) -> String.Index {
@@ -111,6 +115,10 @@ extension Cursor {
     /// Returns `true` if the current index is the index of the last character.
     var isAtLastIndex: Bool {
         index < string.endIndex && string.index(after: index) == string.endIndex
+    }
+
+    var isPastTheEnd: Bool {
+        index >= string.endIndex
     }
 }
 

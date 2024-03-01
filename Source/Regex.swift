@@ -24,6 +24,7 @@ import os.log
 public final class Regex {
     private let options: Options
     private let regex: CompiledRegex
+    private var isHitEnd = false
 
     #if DEBUG
     private let log: OSLog = Regex.isDebugModeEnabled ?
@@ -80,13 +81,17 @@ public extension Regex {
     /// Determine whether the regular expression pattern occurs in the input text.
     func isMatch(_ string: String) -> Bool {
         let matcher = makeMatcher(for: string, isMatchOnly: true)
-        return matcher.nextMatch() != nil
+        let match = matcher.nextMatch()
+        isHitEnd = matcher.hitEnd()
+        return match != nil
     }
 
     /// Returns first match in the given string.
     func firstMatch(in string: String) -> Match? {
         let matcher = makeMatcher(for: string)
-        return matcher.nextMatch()
+        let match = matcher.nextMatch()
+        isHitEnd = matcher.hitEnd()
+        return match
     }
 
     /// Returns an array containing all the matches in the string.
@@ -96,7 +101,12 @@ public extension Regex {
         while let match = matcher.nextMatch() {
             matches.append(match)
         }
+        isHitEnd = matcher.hitEnd()
         return matches
+    }
+
+    func hitEnd() -> Bool {
+        return isHitEnd
     }
 
     /// - paramter isMatchOnly: enables some performance optimizations

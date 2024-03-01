@@ -67,7 +67,7 @@ enum ConditionResult {
     case accepted(count: Int = 1)
 
     /// Transitions can't be performed for the given input.
-    case rejected
+    case rejected(count: Int = 0)
 }
 
 struct Epsilon: Condition {
@@ -79,7 +79,7 @@ struct Epsilon: Condition {
 
     func canPerformTransition(_ cursor: Cursor) -> ConditionResult {
         if let predicate = predicate {
-            return predicate(cursor) ? .accepted(count: 0) : .rejected
+            return predicate(cursor) ? .accepted(count: 0) : .rejected(count: 0)
         }
         return .accepted(count: 0)
     }
